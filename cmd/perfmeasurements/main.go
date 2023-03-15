@@ -19,7 +19,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,14 +30,15 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 )
 
 type Options struct {
-	srcFolder               *string
-	tgtFolder               *string
-	timeBetweenMeasurements *time.Duration
-	timeToRun               *time.Duration
+	srcFolder               string
+	tgtFolder               string
+	timeBetweenMeasurements time.Duration
+	timeToRun               time.Duration
 }
 
 var opts Options
@@ -53,16 +53,25 @@ const (
 	flpExec          = "flowlogs-pipeline"
 )
 
+// rootCmd represents the root command
+var rootCmd = &cobra.Command{
+	Use:   "perfmeasurements",
+	Short: "Run performance measurements on specified config files",
+	Run: func(cmd *cobra.Command, args []string) {
+		run()
+	},
+}
+
 func initFlags() {
-	opts.srcFolder = flag.String("srcFolder", defaultSrcDir, "source folder")
-	opts.tgtFolder = flag.String("tgtFolder", defaultTgtDir, "target folder")
-	opts.timeBetweenMeasurements = flag.Duration("timeBetweenMeasurements", defaultTick, "time between measurements")
-	opts.timeToRun = flag.Duration("timeToRun", defaultTimeToRun, "time to run")
+	rootCmd.PersistentFlags().StringVar(&opts.srcFolder, "srcFolder", defaultSrcDir, "source folder")
+	rootCmd.PersistentFlags().StringVar(&opts.tgtFolder, "tgtFolder", defaultTgtDir, "target folder")
+	rootCmd.PersistentFlags().DurationVar(&opts.timeBetweenMeasurements, "timeBetweenMeasurements", defaultTick, "time between measurements")
+	rootCmd.PersistentFlags().DurationVar(&opts.timeToRun, "timeToRun", defaultTimeToRun, "time to run each test")
 }
 
 func printFlags() {
-	fmt.Printf("srcFolder = %s \n", *opts.srcFolder)
-	fmt.Printf("tgtFolder = %s \n", *opts.tgtFolder)
+	fmt.Printf("srcFolder = %s \n", opts.srcFolder)
+	fmt.Printf("tgtFolder = %s \n", opts.tgtFolder)
 	fmt.Printf("timeBetweenMeasurements = %v \n", opts.timeBetweenMeasurements)
 	fmt.Printf("timeToRun = %v \n", opts.timeToRun)
 }
@@ -75,17 +84,26 @@ func printFilePaths(filePaths []string) {
 }
 
 func main() {
+	// Initialize flags (command line parameters)
 	initFlags()
-	printFlags()
-	filePaths := getYamlFileNames(*opts.srcFolder, "")
-	printFilePaths(filePaths)
-	tgtFolder := *opts.tgtFolder + "/" + time.Now().Format(time.RFC3339)
-	err := createTargetFolder(tgtFolder)
-	if err != nil {
-		fmt.Printf("could not create target folder; err = %v, dirName = %s \n", err, *opts.tgtFolder)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
-	runMeasurements(*opts.srcFolder, filePaths, tgtFolder)
+}
+
+func run() {
+	// Dump the configuration
+	printFlags()
+	filePaths := getYamlFileNames(opts.srcFolder, "")
+	printFilePaths(filePaths)
+	tgtFolder := opts.tgtFolder + "/" + time.Now().Format(time.RFC3339)
+	err := createTargetFolder(tgtFolder)
+	if err != nil {
+		fmt.Printf("could not create target folder; err = %v, dirName = %s \n", err, opts.tgtFolder)
+		os.Exit(1)
+	}
+	runMeasurements(opts.srcFolder, filePaths, tgtFolder)
 }
 
 func getYamlFileNames(rootPath string, prefix string) []string {
@@ -130,8 +148,8 @@ type outputStruct struct {
 	timeFromStart float64
 	cpu           float64
 	memory        float64
-	nFlows        int
-	nProm         int
+	nFlows        float64
+	nProm         float64
 }
 
 func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
@@ -148,7 +166,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		}
 		startTime := time.Now()
 		fmt.Printf("start time = %s \n", startTime.Format(time.RFC3339))
-		ticker := time.NewTicker(*opts.timeBetweenMeasurements)
+		ticker := time.NewTicker(opts.timeBetweenMeasurements)
 		done := make(chan bool)
 		var output []outputStruct
 
@@ -171,7 +189,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 			}
 		}()
 
-		time.Sleep(*opts.timeToRun)
+		time.Sleep(opts.timeToRun)
 		ticker.Stop()
 		done <- true
 
@@ -203,22 +221,22 @@ func collectMetrics() (outputStruct, error) {
 
 	var cpu float64
 	var memory float64
-	var nFlows int
-	var nProm int
+	var nFlows float64
+	var nProm float64
 	for _, line := range lines {
 		if strings.HasPrefix(line, "flp_op_ingest_synthetic_flows_processed") {
 			s := strings.Split(line, " ")
-			nFlows, err = strconv.Atoi(s[1])
+			nFlows, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting nFlows; err = %v \n", err)
+				fmt.Printf("error converting nFlows; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
 		if strings.HasPrefix(line, "flp_op_encode_prom_metrics_processed") {
 			s := strings.Split(line, " ")
-			nProm, err = strconv.Atoi(s[1])
+			nProm, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting nProm; err = %v \n", err)
+				fmt.Printf("error converting nProm; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
@@ -226,7 +244,7 @@ func collectMetrics() (outputStruct, error) {
 			s := strings.Split(line, " ")
 			cpu, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting cpu; err = %v \n", err)
+				fmt.Printf("error converting cpu; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
@@ -234,7 +252,7 @@ func collectMetrics() (outputStruct, error) {
 			s := strings.Split(line, " ")
 			memory, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting memory; err = %v \n", err)
+				fmt.Printf("error converting memory; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
