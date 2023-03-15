@@ -282,8 +282,8 @@ func writeToFile(fileName string, output []outputStruct) {
 	dw := bufio.NewWriter(f)
 
 	for _, metrics := range output {
-		l := fmt.Sprintf("%f,%f,%f,%d,%d", metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm)
-		dw.WriteString(l + "\n")
+		l := fmt.Sprintf("%f,%f,%f,%f,%f", metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm)
+		_, _ = dw.WriteString(l + "\n")
 	}
 
 	dw.Flush()
