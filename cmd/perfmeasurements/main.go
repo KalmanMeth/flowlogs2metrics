@@ -44,13 +44,14 @@ type Options struct {
 var opts Options
 
 const (
-	defaultSrcDir    = "contrib/measurements"
-	defaultTgtDir    = "/tmp/perfmeasurements"
-	defaultTick      = 2 * time.Second
-	defaultTimeToRun = 20 * time.Second
-	definitionExt    = ".yaml"
-	resultExt        = ".csv"
-	flpExec          = "flowlogs-pipeline"
+	defaultSrcDir       = "contrib/measurements"
+	defaultTgtDir       = "/tmp/perfmeasurements"
+	defaultTick         = 2 * time.Second
+	defaultTimeToRun    = 20 * time.Second
+	definitionExt       = ".yaml"
+	resultExt           = ".csv"
+	flpExec             = "flowlogs-pipeline"
+	resultsFolderPrefix = "perf_"
 )
 
 // rootCmd represents the root command
@@ -97,7 +98,7 @@ func run() {
 	printFlags()
 	filePaths := getYamlFileNames(opts.srcFolder, "")
 	printFilePaths(filePaths)
-	tgtFolder := opts.tgtFolder + "/" + time.Now().Format(time.RFC3339)
+	tgtFolder := opts.tgtFolder + "/" + resultsFolderPrefix + time.Now().Format(time.RFC3339)
 	err := createTargetFolder(tgtFolder)
 	if err != nil {
 		fmt.Printf("could not create target folder; err = %v, dirName = %s \n", err, opts.tgtFolder)
@@ -168,7 +169,18 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		fmt.Printf("start time = %s \n", startTime.Format(time.RFC3339))
 		ticker := time.NewTicker(opts.timeBetweenMeasurements)
 		done := make(chan bool)
-		var output []outputStruct
+
+		// create results file
+		fileName := filepath.Join(tgtFolder, fPath)
+		// change the file extension
+		fileName = fileName[:len(fileName)-len(filepath.Ext(fileName))] + resultExt
+		fmt.Printf("output file name = %s \n", fileName)
+		f, err := createTargetFile(fileName)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			continue
+		}
+		dw := bufio.NewWriter(f)
 
 		go func() {
 			for {
@@ -183,8 +195,9 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 					currentTime := time.Now()
 					timeFromStart := currentTime.Sub(startTime)
 					metrics.timeFromStart = timeFromStart.Seconds()
-					fmt.Printf("metrics = %v \n", metrics)
-					output = append(output, metrics)
+					l := fmt.Sprintf("%f,%f,%f,%f,%f", metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm)
+					_, _ = dw.WriteString(l + "\n")
+					dw.Flush()
 				}
 			}
 		}()
@@ -196,13 +209,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		// kill the flp process
 		_ = cmd.Process.Signal(unix.SIGINT)
 		_ = cmd.Wait()
-
-		// write results to output file
-		fileName := filepath.Join(tgtFolder, fPath)
-		// change the file extension
-		fileName = fileName[:len(fileName)-len(filepath.Ext(fileName))] + resultExt
-		fmt.Printf("output file name = %s \n", fileName)
-		writeToFile(fileName, output)
+		f.Close()
 	}
 }
 
@@ -266,25 +273,13 @@ func collectMetrics() (outputStruct, error) {
 	return metrics, nil
 }
 
-func writeToFile(fileName string, output []outputStruct) {
+func createTargetFile(fileName string) (*os.File, error) {
 	dir := filepath.Dir(fileName)
 	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		fmt.Printf("error creating output directory; err = %v \n", err)
-		return
+		return nil, err
 	}
 	f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		fmt.Printf("error creating output file; err = %v \n", err)
-		return
-	}
-	defer f.Close()
-	dw := bufio.NewWriter(f)
-
-	for _, metrics := range output {
-		l := fmt.Sprintf("%f,%f,%f,%f,%f", metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm)
-		_, _ = dw.WriteString(l + "\n")
-	}
-
-	dw.Flush()
+	return f, nil
 }
