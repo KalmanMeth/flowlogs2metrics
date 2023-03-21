@@ -281,5 +281,5 @@ func createTargetFile(fileName string) (*os.File, error) {
 		return nil, err
 	}
 	f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	return f, nil
+	return f, err
 }
