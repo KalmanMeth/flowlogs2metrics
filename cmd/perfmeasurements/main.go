@@ -202,12 +202,15 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 			}
 		}()
 
-		time.Sleep(opts.timeToRun)
-		ticker.Stop()
-		done <- true
+		go func() {
+			time.Sleep(opts.timeToRun)
+			ticker.Stop()
+			done <- true
 
-		// kill the flp process
-		_ = cmd.Process.Signal(unix.SIGINT)
+			// kill the flp process
+			_ = cmd.Process.Signal(unix.SIGINT)
+		}()
+		
 		_ = cmd.Wait()
 		f.Close()
 	}
