@@ -19,6 +19,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,8 +30,11 @@ import (
 	"strings"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
+	"github.com/netobserv/flowlogs-pipeline/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/sys/unix"
 )
 
@@ -153,6 +157,19 @@ type outputStruct struct {
 	nProm         float64
 }
 
+type stageInfo struct {
+	nIngestSynConnections   int
+	nIngestSynBatchLen      int
+	nIngestSynLogsPerMin    int
+	nTransformGenericRules  int
+	nTransformNetworkRules  int
+	nTransformFilterRules   int
+	nConnTrackOutputFields  int
+	nExtractAggregateRules  int
+	nEncodePromMetricsRules int
+	stageTypeNames          []string
+}
+
 func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 	cwd, _ := os.Getwd()
 	flp := cwd + "/" + flpExec
@@ -160,11 +177,19 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		fmt.Printf("running measurements on %s \n", fPath)
 		fullFilePath := filepath.Join(srcFolder, fPath)
 		fmt.Printf("fullFilePath = %s \n", fullFilePath)
+		configStruct := readConfig(fullFilePath)
+		if configStruct == nil {
+			fmt.Printf("error in reading config file: %s \n", fullFilePath)
+			continue
+		}
+		si := extractStageInfo(configStruct)
+		fmt.Printf("stageInfo = %v \n", si)
 		cmd := exec.Command(flp, "--config", fullFilePath)
 		if err := cmd.Start(); err != nil {
 			fmt.Println("Error: ", err)
 			continue
 		}
+
 		startTime := time.Now()
 		fmt.Printf("start time = %s \n", startTime.Format(time.RFC3339))
 		ticker := time.NewTicker(opts.timeBetweenMeasurements)
@@ -181,6 +206,16 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 			continue
 		}
 		dw := bufio.NewWriter(f)
+		// write the csv column headers
+		l := fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+			"timeFromStart", "cpu", "memory", "nFlows", "nPromMetrics",
+			"# connections", "batch len", "flow logs per min",
+			"transform filter rules", "transform generic rules", "transform network rules",
+			"conntrack output fields", "aggregates rules", "prom metrics rules",
+			"stage type names",
+		)
+		_, _ = dw.WriteString(l)
+		dw.Flush()
 
 		go func() {
 			for {
@@ -195,8 +230,14 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 					currentTime := time.Now()
 					timeFromStart := currentTime.Sub(startTime)
 					metrics.timeFromStart = timeFromStart.Seconds()
-					l := fmt.Sprintf("%f,%f,%f,%f,%f", metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm)
-					_, _ = dw.WriteString(l + "\n")
+					l := fmt.Sprintf("%f,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s\n",
+						metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm,
+						si.nIngestSynConnections, si.nIngestSynBatchLen, si.nIngestSynLogsPerMin,
+						si.nTransformFilterRules, si.nTransformGenericRules, si.nTransformNetworkRules,
+						si.nConnTrackOutputFields, si.nExtractAggregateRules, si.nEncodePromMetricsRules,
+						si.stageTypeNames,
+					)
+					_, _ = dw.WriteString(l)
 					dw.Flush()
 				}
 			}
@@ -212,7 +253,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		}()
 
 		_ = cmd.Wait()
-		f.Close()
+		_ = f.Close()
 	}
 }
 
@@ -285,4 +326,77 @@ func createTargetFile(fileName string) (*os.File, error) {
 	}
 	f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	return f, err
+}
+
+func readConfig(confFileName string) *config.ConfigFileStruct {
+	yamlConfig, _ := os.ReadFile(confFileName)
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+	v := viper.New()
+	v.SetConfigType("yaml")
+	r := bytes.NewReader(yamlConfig)
+	_ = v.ReadConfig(r)
+
+	var b []byte
+	pipelineStr := v.Get("pipeline")
+	b, _ = json.Marshal(&pipelineStr)
+	options := config.Options{}
+	options.PipeLine = string(b)
+
+	parametersStr := v.Get("parameters")
+	b, _ = json.Marshal(&parametersStr)
+	options.Parameters = string(b)
+
+	metricsSettingsStr := v.Get("metricsSettings")
+	b, _ = json.Marshal(&metricsSettingsStr)
+	options.MetricsSettings = string(b)
+
+	out, _ := config.ParseConfig(options)
+
+	return &out
+}
+
+func extractStageInfo(configInfo *config.ConfigFileStruct) *stageInfo {
+	si := stageInfo{}
+	var stageTypes []string
+	for _, p := range configInfo.Parameters {
+		var stageType string
+		if p.Ingest != nil {
+			if p.Ingest.Type == "synthetic" {
+				si.nIngestSynConnections += p.Ingest.Synthetic.Connections
+				si.nIngestSynBatchLen += p.Ingest.Synthetic.BatchMaxLen
+				si.nIngestSynLogsPerMin += p.Ingest.Synthetic.FlowLogsPerMin
+			}
+			stageType = "ingest_" + p.Ingest.Type
+		}
+		if p.Transform != nil {
+			stageType = "transform_" + p.Transform.Type
+			switch p.Transform.Type {
+			case "filter":
+				si.nTransformFilterRules += len(p.Transform.Filter.Rules)
+			case "generic":
+				si.nTransformGenericRules += len(p.Transform.Generic.Rules)
+			case "network":
+				si.nTransformNetworkRules += len(p.Transform.Network.Rules)
+			}
+		}
+		if p.Extract != nil {
+			stageType = "extract_" + p.Extract.Type
+			switch p.Extract.Type {
+			case "aggregates":
+				si.nExtractAggregateRules += len(p.Extract.Aggregates)
+			case "conntrack":
+				si.nConnTrackOutputFields += len(p.Extract.ConnTrack.OutputFields)
+			}
+		}
+		if p.Encode != nil {
+			stageType = "encode_" + p.Encode.Type
+			switch p.Encode.Type {
+			case "prom":
+				si.nEncodePromMetricsRules += len(p.Encode.Prom.Metrics)
+			}
+		}
+		stageTypes = append(stageTypes, stageType)
+	}
+	si.stageTypeNames = stageTypes
+	return &si
 }
