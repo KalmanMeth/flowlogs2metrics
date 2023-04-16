@@ -27,7 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var defaultExpiryTime = 10 * time.Minute
+var defaultExpiryTime = 2 * time.Minute
 
 type Aggregates struct {
 	Aggregates []Aggregate
