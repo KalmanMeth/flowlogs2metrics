@@ -180,7 +180,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		// change the file extension
 		fileName = fileName[:len(fileName)-len(filepath.Ext(fileName))] + resultExt
 		fmt.Printf("output file name = %s \n", fileName)
-		f, err := createTargetFile(fileName)
+		f, err := utils.CreateTargetFile(fileName)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			continue
@@ -295,17 +295,6 @@ func collectMetrics() (utils.MetricsStruct, error) {
 		NProm:  nProm,
 	}
 	return metrics, nil
-}
-
-func createTargetFile(fileName string) (*os.File, error) {
-	dir := filepath.Dir(fileName)
-	err := os.MkdirAll(dir, os.ModePerm)
-	if err != nil {
-		fmt.Printf("error creating output directory; err = %v \n", err)
-		return nil, err
-	}
-	f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	return f, err
 }
 
 func readConfig(confFileName string) *config.ConfigFileStruct {
