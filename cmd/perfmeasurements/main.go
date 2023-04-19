@@ -32,6 +32,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/netobserv/flowlogs-pipeline/pkg/config"
+	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/utils"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -149,27 +150,6 @@ func createTargetFolder(folderName string) error {
 	return nil
 }
 
-type outputStruct struct {
-	timeFromStart float64
-	cpu           float64
-	memory        float64
-	nFlows        float64
-	nProm         float64
-}
-
-type stageInfo struct {
-	nIngestSynConnections   int
-	nIngestSynBatchLen      int
-	nIngestSynLogsPerMin    int
-	nTransformGenericRules  int
-	nTransformNetworkRules  int
-	nTransformFilterRules   int
-	nConnTrackOutputFields  int
-	nExtractAggregateRules  int
-	nEncodePromMetricsRules int
-	stageTypeNames          []string
-}
-
 func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 	cwd, _ := os.Getwd()
 	flp := cwd + "/" + flpExec
@@ -183,7 +163,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 			continue
 		}
 		si := extractStageInfo(configStruct)
-		fmt.Printf("stageInfo = %v \n", si)
+		fmt.Printf("StageInfo = %v \n", si)
 		cmd := exec.Command(flp, "--config", fullFilePath)
 		if err := cmd.Start(); err != nil {
 			fmt.Println("Error: ", err)
@@ -208,7 +188,7 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 		dw := bufio.NewWriter(f)
 		// write the csv column headers
 		l := fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
-			"timeFromStart", "cpu", "memory", "nFlows", "nPromMetrics",
+			"TimeFromStart", "Cpu", "Memory", "NFlows", "nPromMetrics",
 			"# connections", "batch len", "flow logs per min",
 			"transform filter rules", "transform generic rules", "transform network rules",
 			"conntrack output fields", "aggregates rules", "prom metrics rules",
@@ -229,13 +209,13 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 					}
 					currentTime := time.Now()
 					timeFromStart := currentTime.Sub(startTime)
-					metrics.timeFromStart = timeFromStart.Seconds()
+					metrics.TimeFromStart = timeFromStart.Seconds()
 					l := fmt.Sprintf("%f,%f,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s\n",
-						metrics.timeFromStart, metrics.cpu, metrics.memory, metrics.nFlows, metrics.nProm,
-						si.nIngestSynConnections, si.nIngestSynBatchLen, si.nIngestSynLogsPerMin,
-						si.nTransformFilterRules, si.nTransformGenericRules, si.nTransformNetworkRules,
-						si.nConnTrackOutputFields, si.nExtractAggregateRules, si.nEncodePromMetricsRules,
-						si.stageTypeNames,
+						metrics.TimeFromStart, metrics.Cpu, metrics.Memory, metrics.NFlows, metrics.NProm,
+						si.NIngestSynConnections, si.NIngestSynBatchLen, si.NIngestSynLogsPerMin,
+						si.NTransformFilterRules, si.NTransformGenericRules, si.NTransformNetworkRules,
+						si.NConnTrackOutputFields, si.NExtractAggregateRules, si.NEncodePromMetricsRules,
+						si.StageTypeNames,
 					)
 					_, _ = dw.WriteString(l)
 					dw.Flush()
@@ -257,11 +237,11 @@ func runMeasurements(srcFolder string, filePaths []string, tgtFolder string) {
 	}
 }
 
-func collectMetrics() (outputStruct, error) {
+func collectMetrics() (utils.MetricsStruct, error) {
 	resp, err := http.Get("http://localhost:9102/metrics")
 	if err != nil {
 		fmt.Println("Error: ", err)
-		return outputStruct{}, err
+		return utils.MetricsStruct{}, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -279,7 +259,7 @@ func collectMetrics() (outputStruct, error) {
 			s := strings.Split(line, " ")
 			nFlows, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting nFlows; s = %v, err = %v \n", s, err)
+				fmt.Printf("error converting NFlows; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
@@ -287,7 +267,7 @@ func collectMetrics() (outputStruct, error) {
 			s := strings.Split(line, " ")
 			nProm, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting nProm; s = %v, err = %v \n", s, err)
+				fmt.Printf("error converting NProm; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
@@ -295,7 +275,7 @@ func collectMetrics() (outputStruct, error) {
 			s := strings.Split(line, " ")
 			cpu, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting cpu; s = %v, err = %v \n", s, err)
+				fmt.Printf("error converting Cpu; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
@@ -303,16 +283,16 @@ func collectMetrics() (outputStruct, error) {
 			s := strings.Split(line, " ")
 			memory, err = strconv.ParseFloat(s[1], 64)
 			if err != nil {
-				fmt.Printf("error converting memory; s = %v, err = %v \n", s, err)
+				fmt.Printf("error converting Memory; s = %v, err = %v \n", s, err)
 				continue
 			}
 		}
 	}
-	metrics := outputStruct{
-		cpu:    cpu,
-		memory: memory,
-		nFlows: nFlows,
-		nProm:  nProm,
+	metrics := utils.MetricsStruct{
+		Cpu:    cpu,
+		Memory: memory,
+		NFlows: nFlows,
+		NProm:  nProm,
 	}
 	return metrics, nil
 }
@@ -355,16 +335,16 @@ func readConfig(confFileName string) *config.ConfigFileStruct {
 	return &out
 }
 
-func extractStageInfo(configInfo *config.ConfigFileStruct) *stageInfo {
-	si := stageInfo{}
+func extractStageInfo(configInfo *config.ConfigFileStruct) *utils.StageInfo {
+	si := utils.StageInfo{}
 	var stageTypes []string
 	for _, p := range configInfo.Parameters {
 		var stageType string
 		if p.Ingest != nil {
 			if p.Ingest.Type == "synthetic" {
-				si.nIngestSynConnections += p.Ingest.Synthetic.Connections
-				si.nIngestSynBatchLen += p.Ingest.Synthetic.BatchMaxLen
-				si.nIngestSynLogsPerMin += p.Ingest.Synthetic.FlowLogsPerMin
+				si.NIngestSynConnections += p.Ingest.Synthetic.Connections
+				si.NIngestSynBatchLen += p.Ingest.Synthetic.BatchMaxLen
+				si.NIngestSynLogsPerMin += p.Ingest.Synthetic.FlowLogsPerMin
 			}
 			stageType = "ingest_" + p.Ingest.Type
 		}
@@ -372,31 +352,31 @@ func extractStageInfo(configInfo *config.ConfigFileStruct) *stageInfo {
 			stageType = "transform_" + p.Transform.Type
 			switch p.Transform.Type {
 			case "filter":
-				si.nTransformFilterRules += len(p.Transform.Filter.Rules)
+				si.NTransformFilterRules += len(p.Transform.Filter.Rules)
 			case "generic":
-				si.nTransformGenericRules += len(p.Transform.Generic.Rules)
+				si.NTransformGenericRules += len(p.Transform.Generic.Rules)
 			case "network":
-				si.nTransformNetworkRules += len(p.Transform.Network.Rules)
+				si.NTransformNetworkRules += len(p.Transform.Network.Rules)
 			}
 		}
 		if p.Extract != nil {
 			stageType = "extract_" + p.Extract.Type
 			switch p.Extract.Type {
 			case "aggregates":
-				si.nExtractAggregateRules += len(p.Extract.Aggregates)
+				si.NExtractAggregateRules += len(p.Extract.Aggregates)
 			case "conntrack":
-				si.nConnTrackOutputFields += len(p.Extract.ConnTrack.OutputFields)
+				si.NConnTrackOutputFields += len(p.Extract.ConnTrack.OutputFields)
 			}
 		}
 		if p.Encode != nil {
 			stageType = "encode_" + p.Encode.Type
 			switch p.Encode.Type {
 			case "prom":
-				si.nEncodePromMetricsRules += len(p.Encode.Prom.Metrics)
+				si.NEncodePromMetricsRules += len(p.Encode.Prom.Metrics)
 			}
 		}
 		stageTypes = append(stageTypes, stageType)
 	}
-	si.stageTypeNames = stageTypes
+	si.StageTypeNames = stageTypes
 	return &si
 }

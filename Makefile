@@ -20,6 +20,7 @@ MIN_GO_VERSION := 1.18.0
 FLP_BIN_FILE=flowlogs-pipeline
 CG_BIN_FILE=confgenerator
 PERF_BIN_FILE=perfmeasurements
+AVG_BIN_FILE=averages
 NETFLOW_GENERATOR=nflow-generator
 CMD_DIR=./cmd/
 FLP_CONF_FILE ?= contrib/kubernetes/flowlogs-pipeline.conf.yaml
@@ -77,6 +78,10 @@ build_code:
 
 .PHONY: build
 build: validate_go lint build_code docs ## Build flowlogs-pipeline executable and update the docs
+
+.PHONY: averages
+averages:
+	GOARCH=${GOARCH} go build -ldflags "-X 'main.BuildVersion=$(BUILD_VERSION)' -X 'main.BuildDate=$(BUILD_DATE)'" "${CMD_DIR}${AVG_BIN_FILE}"
 
 .PHONY: perf
 perf:
