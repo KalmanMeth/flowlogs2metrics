@@ -36,6 +36,7 @@ const (
 	GenericType                  = "generic"
 	NetworkType                  = "network"
 	FilterType                   = "filter"
+	MbgType                      = "mbg"
 	ConnTrackType                = "conntrack"
 	NoneType                     = "none"
 	AddRegExIfRuleType           = "add_regex_if"

@@ -14,6 +14,7 @@ import (
 	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/extract/conntrack"
 	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/ingest"
 	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/transform"
+	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/transform/adapters"
 	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/utils"
 	"github.com/netobserv/flowlogs-pipeline/pkg/pipeline/write"
 	"github.com/netobserv/gopipes/pkg/node"
@@ -376,6 +377,8 @@ func getTransformer(opMetrics *operational.Metrics, params config.StageParam) (t
 		transformer, err = transform.NewTransformFilter(params)
 	case api.NetworkType:
 		transformer, err = transform.NewTransformNetwork(params)
+	case api.MbgType:
+		transformer, err = adapters.NewTransformMbg(params)
 	case api.NoneType:
 		transformer, err = transform.NewTransformNone()
 	default:
