@@ -2,7 +2,7 @@ package api
 
 import "time"
 
-type MbgConnectionInfo struct {
+type GatewayConnectionInfo struct {
 	ServiceName      string
 	ConnectionToken  string
 	LocalSourceIP    string

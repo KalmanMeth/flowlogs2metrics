@@ -18,14 +18,14 @@ type clientInfo struct {
 }
 
 var (
-	activeConnections map[string]api.MbgConnectionInfo
+	activeConnections map[string]api.GatewayConnectionInfo
 	activeClients     map[string]net.Conn
 )
 
 func main() {
 	logFileName := os.Args[1]
 	fmt.Printf("logfilename = %s \n", logFileName)
-	activeConnections = make(map[string]api.MbgConnectionInfo)
+	activeConnections = make(map[string]api.GatewayConnectionInfo)
 	activeClients = make(map[string]net.Conn)
 	serverAddr := os.Args[2]
 	fmt.Printf("serverAddr = %s \n", serverAddr)
@@ -114,7 +114,7 @@ func tailFile(filepath string) {
 	fmt.Printf("no more lines \n")
 }
 
-func sendConnInfo(connInfo api.MbgConnectionInfo) {
+func sendConnInfo(connInfo api.GatewayConnectionInfo) {
 	// convert connection info into JSON string
 	buffer, err := json.Marshal(connInfo)
 	if err != nil {
@@ -133,7 +133,7 @@ func sendConnInfo(connInfo api.MbgConnectionInfo) {
 	}
 }
 
-func parseLine(s string) api.MbgConnectionInfo {
+func parseLine(s string) api.GatewayConnectionInfo {
 	sArray := strings.SplitAfter(s, "wildcard:")
 	sArray2 := strings.Split(sArray[1], " ")
 	s1 := strings.Split(sArray2[0], "-")
@@ -143,7 +143,7 @@ func parseLine(s string) api.MbgConnectionInfo {
 	gatewayUrl = strings.TrimRight(gatewayUrl, ")")
 	gatewayUrl = strings.TrimLeft(gatewayUrl, "(")
 	s3 := strings.Split(gatewayUrl, ":")
-	c := api.MbgConnectionInfo{
+	c := api.GatewayConnectionInfo{
 		ServiceName:     s1[0],
 		ConnectionToken: s1[1],
 		LocalSourceIP:   s2[0],

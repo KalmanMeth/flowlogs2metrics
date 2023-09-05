@@ -378,7 +378,7 @@ func getTransformer(opMetrics *operational.Metrics, params config.StageParam) (t
 	case api.NetworkType:
 		transformer, err = transform.NewTransformNetwork(params)
 	case api.MbgType:
-		transformer, err = adapters.NewTransformMbg(params)
+		transformer, err = adapters.NewTransformGateway(params)
 	case api.NoneType:
 		transformer, err = transform.NewTransformNone()
 	default:

@@ -17,6 +17,6 @@
 
 package api
 
-type TransformMbg struct {
+type TransformGateway struct {
 	ServerAddr string `yaml:"serverAddr,omitempty" json:"serverAddr,omitempty" doc:"address of mbg log proxy:"`
 }
