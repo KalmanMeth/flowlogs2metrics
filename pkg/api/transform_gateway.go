@@ -19,4 +19,8 @@ package api
 
 type TransformGateway struct {
 	ServerAddr string `yaml:"serverAddr,omitempty" json:"serverAddr,omitempty" doc:"address of mbg log proxy:"`
+	Addr1      string `yaml:"addr1,omitempty" json:"addr1,omitempty" doc:"field name in flow log of first IP address:"`
+	Port1      string `yaml:"port1,omitempty" json:"port1,omitempty" doc:"field name in flow log of port of first IP address:"`
+	Addr2      string `yaml:"addr2,omitempty" json:"addr2,omitempty" doc:"field name in flow log of second IP address:"`
+	Port2      string `yaml:"port2,omitempty" json:"port2,omitempty" doc:"field name in flow log of port of second IP address:"`
 }
