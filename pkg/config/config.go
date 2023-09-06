@@ -105,7 +105,7 @@ type Transform struct {
 	Generic *api.TransformGeneric `yaml:"generic,omitempty" json:"generic,omitempty"`
 	Filter  *api.TransformFilter  `yaml:"filter,omitempty" json:"filter,omitempty"`
 	Network *api.TransformNetwork `yaml:"network,omitempty" json:"network,omitempty"`
-	Gateway *api.TransformGateway `yaml:"mbg,omitempty" json:"mbg,omitempty"`
+	Gateway *api.TransformGateway `yaml:"gateway,omitempty" json:"gateway,omitempty"`
 }
 
 type Extract struct {

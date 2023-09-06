@@ -36,7 +36,7 @@ const (
 	GenericType                  = "generic"
 	NetworkType                  = "network"
 	FilterType                   = "filter"
-	MbgType                      = "mbg"
+	GatewayType                  = "gateway"
 	ConnTrackType                = "conntrack"
 	NoneType                     = "none"
 	AddRegExIfRuleType           = "add_regex_if"

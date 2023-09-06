@@ -19,7 +19,6 @@ package adapters
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -55,26 +54,18 @@ func (m *GatewayStruct) Transform(entry config.GenericMap) (config.GenericMap, b
 	outputEntry := entry.Copy()
 	addr1, ok := entry[m.gatewayInfo.Addr1].(string)
 	if !ok {
-		fmt.Printf("error in Addr1 \n")
-		fmt.Printf("entry = %v \n", entry)
 		return outputEntry, true
 	}
 	addr2, ok := entry[m.gatewayInfo.Addr2].(string)
 	if !ok {
-		fmt.Printf("error in Addr2 \n")
-		fmt.Printf("entry = %v \n", entry)
 		return outputEntry, true
 	}
 	port1, ok := entry[m.gatewayInfo.Port1]
 	if !ok {
-		fmt.Printf("error in Port1 \n")
-		fmt.Printf("entry = %v \n", entry)
 		return outputEntry, true
 	}
 	port2, ok := entry[m.gatewayInfo.Port2]
 	if !ok {
-		fmt.Printf("error in Port2 \n")
-		fmt.Printf("entry = %v \n", entry)
 		return outputEntry, true
 	}
 	m.mu.Lock()
@@ -90,21 +81,19 @@ func (m *GatewayStruct) Transform(entry config.GenericMap) (config.GenericMap, b
 			mlog.Errorf("error converting GatewayPort = %v, err = %v", conn.GatewayPort, err)
 			continue
 		}
-		if conn.LocalSourceIP == entry[addr1] &&
+		if conn.LocalSourceIP == addr1 &&
 			portA == uint64(port1.(uint32)) &&
-			conn.GatewayIP == entry[addr2] &&
+			conn.GatewayIP == addr2 &&
 			portB == uint64(port2.(uint32)) {
 			outputEntry["ConnectionToken"] = conn.ConnectionToken
 			mlog.Debugf("GatewayStruct Transform, outputEntry = %v \n", outputEntry)
-			fmt.Printf("GatewayStruct Transform, outputEntry = %v \n", outputEntry)
 			break
-		} else if conn.LocalSourceIP == entry[addr2] &&
+		} else if conn.LocalSourceIP == addr2 &&
 			portA == uint64(port2.(uint32)) &&
-			conn.GatewayIP == entry[addr1] &&
+			conn.GatewayIP == addr1 &&
 			portB == uint64(port1.(uint32)) {
 			outputEntry["ConnectionToken"] = conn.ConnectionToken
 			mlog.Debugf("GatewayStruct Transform, outputEntry = %v \n", outputEntry)
-			fmt.Printf("GatewayStruct Transform, outputEntry = %v \n", outputEntry)
 			break
 		}
 	}
